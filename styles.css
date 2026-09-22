@@ -152,6 +152,13 @@
   border-bottom: none;
 }
 
+/* 表格里的文档名可点击跳转：允许换行，避免长路径把表格撑宽 */
+.mindtrace-doc-cell .mindtrace-doc-link {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 文档画像 ---------- */
 .mindtrace-doc-cols {
   display: grid;

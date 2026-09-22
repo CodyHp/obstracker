@@ -1176,7 +1176,7 @@ function rankingModes(): RankingMode[] {
   ];
 }
 
-function renderDocPerformance(box: HTMLElement, report: Report): void {
+function renderDocPerformance(box: HTMLElement, report: Report, theme: ThemeVars, openFile?: (path: string) => void): void {
   clearCard(box);
   if (report.docPerformance.length === 0) {
     box.createEl("div", { cls: "mindtrace-empty", text: t("empty") });
@@ -1210,7 +1210,8 @@ function renderDocPerformance(box: HTMLElement, report: Report): void {
     body.empty();
     for (const d of list) {
       const tr = body.createEl("tr");
-      tr.createEl("td", { text: d.notePath });
+      const nameTd = tr.createEl("td", { cls: "mindtrace-doc-cell" });
+      docLink(nameTd, d.notePath, openFile);
       tr.createEl("td", { text: m.main(d) });
       tr.createEl("td", { text: m.sub(d) });
     }
