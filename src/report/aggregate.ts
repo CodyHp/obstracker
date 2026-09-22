@@ -531,25 +531,45 @@ export function buildReport(events: TrackedEvent[], settings: MindTraceSettings,
     return { weekday: Number(k.slice(0, idx)), hour: Number(k.slice(idx + 1)), seconds: Math.round(v) };
   });
 
-  // 13. 单篇字数增长（按累计净增长排序，显示增长最多的文档，而非高频文档）
+  // 13. 单篇字数增长（按「最近 7 天的净增长」排序，并对越久未编辑的文档做温和衰减）
+  // 旧实现按整个保留窗口的累计增长排序，导致历史上高产的老文档长期霸榜、
+  // 且这些文档已不再被编辑，曲线看上去「一直没更新」。改为只统计近期增量并按
+  // 距今天数衰减：排序随每天的新编辑自然滑动，正在写的文档才会浮到卡片前面。
+  const RECENT_GROWTH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+  const nowTs = Date.now();
+  const recentSince = nowTs - RECENT_GROWTH_WINDOW_MS;
   const growthMap = new Map<string, { ts: number; cumulative: number }[]>();
+  const recentGrowthMap = new Map<string, number>();
   for (const e of edits) {
     if (isVirtual(e.notePath)) continue; // 虚拟 edit 不进单篇增长
     const list = growthMap.get(e.notePath) ?? [];
     const prev = list.length > 0 ? list[list.length - 1].cumulative : 0;
     list.push({ ts: e.ts, cumulative: prev + e.charDelta });
     growthMap.set(e.notePath, list);
+    if (e.ts >= recentSince) {
+      recentGrowthMap.set(e.notePath, (recentGrowthMap.get(e.notePath) ?? 0) + e.charDelta);
+    }
   }
-  const docGrowth: DocGrowth[] = [...growthMap.entries()]
-    .map(([notePath, points]) => ({
-      notePath,
-      points,
-      growth: points.length > 0 ? points[points.length - 1].cumulative : 0,
-    }))
-    .filter((d) => d.points.length > 1 && d.growth > 0)
-    .sort((a, b) => b.growth - a.growth)
-    .slice(0, 10)
-    .map(({ notePath, points }) => ({ notePath, points }));
+  const growthEntries = [...growthMap.entries()].map(([notePath, points]) => ({
+    notePath,
+    points,
+    growth: points.length > 0 ? points[points.length - 1].cumulative : 0,
+    recentGrowth: recentGrowthMap.get(notePath) ?? 0,
+    lastTs: points.length > 0 ? points[points.length - 1].ts : 0,
+  }));
+  // 排序分 = 近 7 天净增长 / (1 + 距最后编辑的天数)。衰减很温和：刚写过的文档略微加权，
+  // 但一次 +2 字的小改动仍然排在后面；同分时取更近编辑的。
+  // 注意不再要求 points.length > 1——新文档往往只有一次采样，此前会被整条丢弃。
+  const scoreOf = (d: (typeof growthEntries)[number]): number =>
+    d.recentGrowth / (1 + Math.max(0, nowTs - d.lastTs) / (24 * 60 * 60 * 1000));
+  let rankedGrowth = growthEntries
+    .filter((d) => d.recentGrowth > 0 && d.growth > 0)
+    .sort((a, b) => scoreOf(b) - scoreOf(a) || b.lastTs - a.lastTs);
+  if (rankedGrowth.length === 0) {
+    // 最近 7 天没有新增（例如刚恢复使用）：退回按最后编辑时间展示仍有净增长的文档，避免卡片空白
+    rankedGrowth = growthEntries.filter((d) => d.growth > 0).sort((a, b) => b.lastTs - a.lastTs);
+  }
+  const docGrowth: DocGrowth[] = rankedGrowth.slice(0, 10).map(({ notePath, points }) => ({ notePath, points }));
 
   // 14. 主题注意力流向（相邻真实 session 且间隔 < 5 分钟的切换；虚拟摘要 session 不参与）
   const sorted = [...processed]

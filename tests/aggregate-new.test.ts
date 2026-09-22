@@ -84,6 +84,36 @@ describe("buildReport 新增指标", () => {
     expect(g?.points[1].cumulative).toBe(80);
   });
 
+  it("docGrowth：近期在写的新文档排在历史高产的旧文档之前（旧文档不再霸榜）", () => {
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    // 旧文档：10 天前一次性写了 10000 字，已落在最近 7 天窗口之外
+    const oldEdit: EditEvent = { type: "edit", ts: now - 10 * DAY, notePath: "旧文档.md", charDelta: 10000, wordDelta: 100 };
+    // 新文档：今天写了 200 字
+    const newEdit: EditEvent = { type: "edit", ts: now - 1000, notePath: "新文档.md", charDelta: 200, wordDelta: 20 };
+    const r = buildReport([oldEdit, newEdit], settings);
+    expect(r.docGrowth[0].notePath).toBe("新文档.md");
+    expect(r.docGrowth.some((d) => d.notePath === "旧文档.md")).toBe(false);
+  });
+
+  it("docGrowth：只有单个采样点的新文档也会出现（回归：此前被 points.length>1 丢弃）", () => {
+    const now = Date.now();
+    const e: EditEvent = { type: "edit", ts: now - 500, notePath: "刚建的新笔记.md", charDelta: 3711, wordDelta: 0 };
+    const r = buildReport([e], settings);
+    const g = r.docGrowth.find((d) => d.notePath === "刚建的新笔记.md");
+    expect(g).toBeDefined();
+    expect(g?.points).toHaveLength(1);
+  });
+
+  it("docGrowth：刚编辑过的文档比 6 天前的同类文档更靠前（时间衰减）", () => {
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    const older: EditEvent = { type: "edit", ts: now - 6 * DAY, notePath: "六天前.md", charDelta: 2000, wordDelta: 20 };
+    const fresh: EditEvent = { type: "edit", ts: now - 60 * 1000, notePath: "刚刚.md", charDelta: 400, wordDelta: 4 };
+    const r = buildReport([older, fresh], settings);
+    expect(r.docGrowth[0].notePath).toBe("刚刚.md");
+  });
+
   it("flow：相邻不同主题切换产生流向", () => {
     const now = Date.now();
     const s1 = makeSession({ notePath: "哲学/康德.md", ts: now - 200000, endTs: now - 190000 });

@@ -1057,7 +1057,9 @@ function renderDocGrowth(box: HTMLElement, report: Report, theme: ThemeVars): vo
       series: [
         {
           type: "line",
-          showSymbol: false,
+          // 只有一个采样点时折线不可见，需要显式画点（新文档常见）
+          showSymbol: current.points.length <= 1,
+          symbolSize: 8,
           data: current.points.map((p) => [p.ts, p.cumulative]),
           lineStyle: { color: theme.accent },
           itemStyle: { color: theme.accent },
