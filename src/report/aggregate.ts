@@ -227,7 +227,10 @@ export function buildReport(events: TrackedEvent[], settings: MindTraceSettings,
       continue;
     }
     const realPath = isVirtual(s.notePath) ? s.notePath.slice(SUMMARY_PREFIX.length) : s.notePath;
-    const levels = folderLevels(realPath);
+    // 摘要 cells 的 key 本身就是「顶级目录」（summarizeDay 用 folderLevels(...)[0] 聚合），
+    // 所以虚拟事件的 realPath 后面没有 "/"，不能再走 folderLevels——那会把它当成根目录
+    // 文件而整体归入「未分类」，导致历史时长全部堆到未分类上。
+    const levels = isVirtual(s.notePath) ? [realPath] : folderLevels(realPath);
     const folders = levels.length > 0 ? levels : [UNCATEGORIZED];
     const top = levels.length > 0 ? levels[0] : UNCATEGORIZED;
     const { readSeconds, writeSeconds } = classifyReadWrite(s);

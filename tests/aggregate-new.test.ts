@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildReport } from "../src/report/aggregate";
 import { DEFAULT_SETTINGS } from "../src/settings";
-import { EditEvent, SessionEvent } from "../src/types";
+import { EditEvent, SessionEvent, SUMMARY_PREFIX } from "../src/types";
 
 const settings = { ...DEFAULT_SETTINGS };
 
@@ -112,6 +112,19 @@ describe("buildReport 新增指标", () => {
     const fresh: EditEvent = { type: "edit", ts: now - 60 * 1000, notePath: "刚刚.md", charDelta: 400, wordDelta: 4 };
     const r = buildReport([older, fresh], settings);
     expect(r.docGrowth[0].notePath).toBe("刚刚.md");
+  });
+
+  it("folderBars：历史摘要的时长归到真实顶级目录，而不是「未分类」（回归）", () => {
+    // loader.summariesToEvents 会把摘要 cells 反序列化成 notePath = __summary__/<顶级目录> 的虚拟 session
+    const virtual: SessionEvent = makeSession({
+      notePath: `${SUMMARY_PREFIX}01-日记与反思`,
+      noteTitle: "01-日记与反思",
+      activeSeconds: 1800,
+    });
+    const r = buildReport([virtual], settings);
+    expect(r.folderBars[0].folder).toBe("01-日记与反思");
+    expect(r.folderBars.map((f) => f.folder)).not.toContain("未分类");
+    expect(r.folderBars[0].seconds).toBe(1800);
   });
 
   it("flow：相邻不同主题切换产生流向", () => {
