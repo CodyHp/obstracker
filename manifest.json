@@ -1,7 +1,7 @@
 {
   "id": "obstracker",
   "name": "MindTrace",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "minAppVersion": "1.7.2",
   "description": "Local-first time & attention tracker: automatically track reading and writing time on each note, then visualize how your attention flows across topics, hours, and weekdays.",
   "author": "yinxuhao",
